@@ -2,40 +2,42 @@ import pandas as pd
 from scipy import stats
 import argparse
 
-def convert_likert_to_numeric(df, columns):
-    """
-    Converts specified columns with Likert scale strings to numeric values.
-    Uses a default 5-point Likert scale mapping.
-    """
-    likert_mapping = {
-        'strongly disagree': 1,
-        'somewhat disagree': 2,
-        'neither agree nor disagree': 3,
-        'somewhat agree': 4,
-        'strongly agree': 5
-    }
+def find_data_start_row(file_path):
+    try:
+        df_peek = pd.read_csv(file_path, header=0, usecols=['Finished'])
+        first_data_index = df_peek['Finished'].eq('TRUE').idxmax()
+        rows_to_skip = range(1, first_data_index + 1)
+        return list(rows_to_skip)
+    except (ValueError, KeyError, FileNotFoundError):
+        return [1, 2]
+
+def convert_likert_to_numeric(df, columns, likert_mapping):
+
     for col in columns:
         if col in df.columns:
-            # Convert column to lowercase strings before mapping
+            # lowercase
             df[col] = df[col].astype(str).str.lower().map(likert_mapping)
     return df
 
 def main():
     parser = argparse.ArgumentParser(description="Perform statistical analysis on a CSV file.")
     parser.add_argument("file_path", help="Path to the CSV file.")
-    parser.add_argument("--likert", action="store_true", help="Convert Likert scale responses to numeric values.")
+    parser.add_argument("--likert", action="store_true", help="Convert 5-point agreement Likert scale to numeric.")
+    parser.add_argument("--likert2", action="store_true", help="Convert 5-point satisfaction Likert scale to numeric.")
     args = parser.parse_args()
 
-    # Load the CSV file
+    # load it
     try:
-        data = pd.read_csv(args.file_path)
+        rows_to_skip = find_data_start_row(args.file_path)
+        data = pd.read_csv(args.file_path, header=0, skiprows=rows_to_skip)
     except Exception as e:
         print(f"Error reading the CSV file: {e}")
         return
 
-    # Ask for the type of test
+    # what test?
     print("Select the statistical test you want to perform:")
     print("1. One-way ANOVA")
+    print("2. Friedman Test")
     test_choice = input("Enter the number of your choice: ")
 
     if test_choice == '1':
@@ -43,13 +45,28 @@ def main():
         columns_input = input("Enter the column names separated by commas: ")
         columns = [col.strip() for col in columns_input.split(',')]
 
-        # Optionally convert Likert scale data
+        # convert if using likert
         if args.likert:
-            data = convert_likert_to_numeric(data, columns)
+            likert_mapping_1 = {
+                'strongly disagree': 1,
+                'somewhat disagree': 2,
+                'neither agree nor disagree': 3,
+                'somewhat agree': 4,
+                'strongly agree': 5
+            }
+            data = convert_likert_to_numeric(data, columns, likert_mapping_1)
+        elif args.likert2:
+            likert_mapping_2 = {
+                "extremely easy": 1,
+                "somewhat easy": 2,
+                "neither easy nor difficult": 3,
+                "somewhat difficult": 4,
+                "extremely difficult": 5
+            }
+            data = convert_likert_to_numeric(data, columns, likert_mapping_2)
 
-        # Perform one-way ANOVA
+        # one-way ANOVA
         try:
-            # Ensure all specified columns exist
             valid_columns = [col for col in columns if col in data.columns]
             if len(valid_columns) != len(columns):
                 missing = set(columns) - set(valid_columns)
@@ -64,6 +81,33 @@ def main():
             print(f"F-statistic: {f_statistic}, p-value: {p_value}")
         except Exception as e:
             print(f"Error performing ANOVA: {e}")
+    elif test_choice == '2':
+        columns_input = input("Enter the column names for the ranked data, separated by commas: ")
+        columns = [col.strip() for col in columns_input.split(',')]
+
+        try:
+            # make sure all the cols exist
+            valid_columns = [col for col in columns if col in data.columns]
+            if len(valid_columns) != len(columns):
+                missing = set(columns) - set(valid_columns)
+                print(f"Warning: The following columns were not found and will be ignored: {', '.join(missing)}")
+            
+            if len(valid_columns) < 2:
+                print("Error: The Friedman test requires at least two columns of data.")
+                return
+
+            # friedman
+            ranked_data = data[valid_columns].dropna()
+
+            if len(ranked_data) == 0:
+                print("Error: No complete sets of ranked data found after removing rows with missing values.")
+                return
+
+            groups = [ranked_data[col] for col in valid_columns]
+            statistic, p_value = stats.friedmanchisquare(*groups)
+            print(f"Friedman test statistic: {statistic}, p-value: {p_value}")
+        except Exception as e:
+            print(f"Error performing Friedman test: {e}")
     else:
         print("Invalid choice. Please select a valid test.")
 
