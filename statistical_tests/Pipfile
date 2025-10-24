@@ -1,0 +1,13 @@
+[[source]]
+url = "https://pypi.org/simple"
+name = "stats_tests"
+verify_ssl = true
+
+[packages]
+pandas = "*"
+scipy = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.12"
