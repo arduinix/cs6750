@@ -57,11 +57,11 @@ def main():
             data = convert_likert_to_numeric(data, columns, likert_mapping_1)
         elif args.likert2:
             likert_mapping_2 = {
-                "extremely easy": 1,
-                "somewhat easy": 2,
+                "extremely difficult": 1,
+                "somewhat difficult": 2,
                 "neither easy nor difficult": 3,
-                "somewhat difficult": 4,
-                "extremely difficult": 5
+                "somewhat easy": 4,
+                "extremely easy": 5,
             }
             data = convert_likert_to_numeric(data, columns, likert_mapping_2)
 
@@ -75,6 +75,17 @@ def main():
             if len(valid_columns) < 2:
                 print("Error: ANOVA requires at least two columns of data.")
                 return
+
+       
+            print("\n--- Descriptive Statistics ---")
+            for col in valid_columns:
+                numeric_col = pd.to_numeric(data[col], errors='coerce').dropna()
+                if not numeric_col.empty:
+                    mean = numeric_col.mean()
+                    std_dev = numeric_col.std()
+                    count = numeric_col.count()
+                    print(f"Column: {col} | Mean: {mean:.2f} | Std Dev: {std_dev:.2f} | Count: {count}")
+            print("---------------------------\n")
 
             groups = [data[col].dropna() for col in valid_columns]
             f_statistic, p_value = stats.f_oneway(*groups)
