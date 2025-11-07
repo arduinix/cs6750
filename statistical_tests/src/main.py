@@ -1,6 +1,7 @@
 import pandas as pd
 from scipy import stats
 import argparse
+import matplotlib.pyplot as plt
 
 def find_data_start_row(file_path):
     try:
@@ -15,20 +16,62 @@ def convert_likert_to_numeric(df, columns, likert_mapping):
 
     for col in columns:
         if col in df.columns:
-            # lowercase
             df[col] = df[col].astype(str).str.lower().map(likert_mapping)
     return df
+
+def select_columns_by_name():
+    """
+    Prompts the user to enter column names directly.
+    """
+    columns_input = input("\nEnter the column names to analyze, separated by commas: ")
+    columns = [col.strip() for col in columns_input.split(',')]
+    return columns
+
+def select_columns_by_number(df):
+    """
+    Lists all columns, prompts the user to select by number, and returns column names.
+    """
+    column_list = df.columns.tolist()
+    print("\nAvailable columns:")
+    for i, col_name in enumerate(column_list):
+        print(f"  {i + 1}: {col_name}")
+
+    selected_columns = []
+    while True:
+        try:
+            selection_input = input("\nEnter the numbers of the columns to analyze, separated by commas: ")
+            selected_indices = [int(num.strip()) - 1 for num in selection_input.split(',')]
+            
+            # Validate indices
+            if any(i < 0 or i >= len(column_list) for i in selected_indices):
+                print(f"Error: Invalid selection. Please choose numbers between 1 and {len(column_list)}.")
+                continue
+
+            selected_columns = [column_list[i] for i in selected_indices]
+            break
+        except ValueError:
+            print("Error: Invalid input. Please enter a comma-separated list of numbers.")
+    
+    return selected_columns
 
 def main():
     parser = argparse.ArgumentParser(description="Perform statistical analysis on a CSV file.")
     parser.add_argument("file_path", help="Path to the CSV file.")
     parser.add_argument("--likert", action="store_true", help="Convert 5-point agreement Likert scale to numeric.")
     parser.add_argument("--likert2", action="store_true", help="Convert 5-point satisfaction Likert scale to numeric.")
+    parser.add_argument("--select-by-number", action="store_true", help="Select columns by number from a list instead of by name.")
     args = parser.parse_args()
 
     # load it
     try:
-        rows_to_skip = find_data_start_row(args.file_path)
+        skip_input = input("Enter the number of rows to ignore after the header (e.g., 2), or press Enter to auto-detect: ")
+        if skip_input.strip().isdigit():
+            num_to_skip = int(skip_input)
+            rows_to_skip = list(range(1, num_to_skip + 1))
+        else:
+            print("Auto-detecting data start row...")
+            rows_to_skip = find_data_start_row(args.file_path)
+        
         data = pd.read_csv(args.file_path, header=0, skiprows=rows_to_skip)
     except Exception as e:
         print(f"Error reading the CSV file: {e}")
@@ -38,12 +81,15 @@ def main():
     print("Select the statistical test you want to perform:")
     print("1. One-way ANOVA")
     print("2. Friedman Test")
+    print("3. Distribution charts")
     test_choice = input("Enter the number of your choice: ")
 
     if test_choice == '1':
-        # Ask for the columns to analyze
-        columns_input = input("Enter the column names separated by commas: ")
-        columns = [col.strip() for col in columns_input.split(',')]
+        # ask for cols
+        if args.select_by_number:
+            columns = select_columns_by_number(data)
+        else:
+            columns = select_columns_by_name()
 
         # convert if using likert
         if args.likert:
@@ -93,8 +139,10 @@ def main():
         except Exception as e:
             print(f"Error performing ANOVA: {e}")
     elif test_choice == '2':
-        columns_input = input("Enter the column names for the ranked data, separated by commas: ")
-        columns = [col.strip() for col in columns_input.split(',')]
+        if args.select_by_number:
+            columns = select_columns_by_number(data)
+        else:
+            columns = select_columns_by_name()
 
         try:
             # make sure all the cols exist
@@ -119,6 +167,48 @@ def main():
             print(f"Friedman test statistic: {statistic}, p-value: {p_value}")
         except Exception as e:
             print(f"Error performing Friedman test: {e}")
+    elif test_choice == '3':
+        if args.select_by_number:
+            columns = select_columns_by_number(data)
+        else:
+            columns = select_columns_by_name()
+
+        valid_columns = [col for col in columns if col in data.columns]
+        if len(valid_columns) != len(columns):
+            missing = set(columns) - set(valid_columns)
+            print(f"Warning: The following columns were not found and will be ignored: {', '.join(missing)}")
+
+        if not valid_columns:
+            print("No valid columns to analyze.")
+            return
+
+        for col in valid_columns:
+            try:
+                # handle comma-separated values
+                processed_series = data[col].dropna().astype(str).str.split(',').explode().str.strip()
+                
+                counts = processed_series.value_counts()
+
+                if counts.empty:
+                    print(f"\nColumn '{col}' has no data to plot.")
+                    continue
+
+                # crate the plot
+                plt.figure(figsize=(10, 6))
+                ax = counts.plot(kind='bar')
+
+                # add labels
+                ax.bar_label(ax.containers[0])
+
+                plt.title(f'Distribution for "{col}"')
+                plt.ylabel('Count')
+                plt.xlabel('Response')
+                plt.xticks(rotation=45, ha='right')
+                plt.tight_layout()
+                plt.show()
+
+            except Exception as e:
+                print(f"Could not generate chart for column '{col}': {e}")
     else:
         print("Invalid choice. Please select a valid test.")
 
