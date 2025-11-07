@@ -2,6 +2,8 @@ import pandas as pd
 from scipy import stats
 import argparse
 import matplotlib.pyplot as plt
+import os
+from datetime import datetime
 
 def find_data_start_row(file_path):
     try:
@@ -42,7 +44,7 @@ def select_columns_by_number(df):
             selection_input = input("\nEnter the numbers of the columns to analyze, separated by commas: ")
             selected_indices = [int(num.strip()) - 1 for num in selection_input.split(',')]
             
-            # Validate indices
+            # validate indices
             if any(i < 0 or i >= len(column_list) for i in selected_indices):
                 print(f"Error: Invalid selection. Please choose numbers between 1 and {len(column_list)}.")
                 continue
@@ -60,6 +62,7 @@ def main():
     parser.add_argument("--likert", action="store_true", help="Convert 5-point agreement Likert scale to numeric.")
     parser.add_argument("--likert2", action="store_true", help="Convert 5-point satisfaction Likert scale to numeric.")
     parser.add_argument("--select-by-number", action="store_true", help="Select columns by number from a list instead of by name.")
+    parser.add_argument("--save-charts", action="store_true", help="Save charts to files instead of displaying them.")
     args = parser.parse_args()
 
     # load it
@@ -182,6 +185,10 @@ def main():
             print("No valid columns to analyze.")
             return
 
+        output_dir = "output"
+        if args.save_charts:
+            os.makedirs(output_dir, exist_ok=True)
+
         for col in valid_columns:
             try:
                 # handle comma-separated values
@@ -205,7 +212,19 @@ def main():
                 plt.xlabel('Response')
                 plt.xticks(rotation=45, ha='right')
                 plt.tight_layout()
-                plt.show()
+
+                if args.save_charts:
+                    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                    # Sanitize column name for filename
+                    safe_col_name = "".join(c for c in col if c.isalnum() or c in ('_', '-')).rstrip()
+                    filename = f"{safe_col_name}_{timestamp}.png"
+                    filepath = os.path.join(output_dir, filename)
+                    
+                    plt.savefig(filepath)
+                    plt.close() # Free memory
+                    print(f"Chart saved to {filepath}")
+                else:
+                    plt.show()
 
             except Exception as e:
                 print(f"Could not generate chart for column '{col}': {e}")
