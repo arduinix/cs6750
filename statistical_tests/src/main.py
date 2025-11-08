@@ -191,21 +191,21 @@ def main():
 
         for col in valid_columns:
             try:
-                # handle comma-separated values
                 processed_series = data[col].dropna().astype(str).str.split(',').explode().str.strip()
-                
                 counts = processed_series.value_counts()
 
                 if counts.empty:
                     print(f"\nColumn '{col}' has no data to plot.")
                     continue
 
-                # crate the plot
+                total_responses = counts.sum()
+
                 plt.figure(figsize=(10, 6))
                 ax = counts.plot(kind='bar')
+                
+                labels = [f'{count}\n({count/total_responses:.1%})' for count in counts]
 
-                # add labels
-                ax.bar_label(ax.containers[0])
+                ax.bar_label(ax.containers[0], labels=labels, padding=3)
 
                 plt.title(f'Distribution for "{col}"')
                 plt.ylabel('Count')
@@ -215,13 +215,12 @@ def main():
 
                 if args.save_charts:
                     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                    # Sanitize column name for filename
                     safe_col_name = "".join(c for c in col if c.isalnum() or c in ('_', '-')).rstrip()
                     filename = f"{safe_col_name}_{timestamp}.png"
                     filepath = os.path.join(output_dir, filename)
                     
                     plt.savefig(filepath)
-                    plt.close() # Free memory
+                    plt.close()
                     print(f"Chart saved to {filepath}")
                 else:
                     plt.show()
