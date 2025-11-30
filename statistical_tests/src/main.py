@@ -61,6 +61,7 @@ def main():
     parser.add_argument("file_path", help="Path to the CSV file.")
     parser.add_argument("--likert", action="store_true", help="Convert 5-point agreement Likert scale to numeric.")
     parser.add_argument("--likert2", action="store_true", help="Convert 5-point satisfaction Likert scale to numeric.")
+    parser.add_argument("--likert3", action="store_true", help="Convert 5-point frequency Likert scale to numeric. Another Likert mapping.")
     parser.add_argument("--select-by-number", action="store_true", help="Select columns by number from a list instead of by name.")
     parser.add_argument("--save-charts", action="store_true", help="Save charts to files instead of displaying them.")
     args = parser.parse_args()
@@ -113,6 +114,15 @@ def main():
                 "extremely easy": 5,
             }
             data = convert_likert_to_numeric(data, columns, likert_mapping_2)
+        elif args.likert3:
+            likert_mapping_3 = {
+                "strongly agree": 1,
+                "agree": 2,
+                "neutral": 3,
+                "disagree": 4,
+                "strongly disagree": 5,
+            }
+            data = convert_likert_to_numeric(data, columns, likert_mapping_3)
 
         # one-way ANOVA
         try:
